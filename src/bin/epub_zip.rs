@@ -16,5 +16,5 @@ struct Args {
 fn main() {
     let args: Args = argh::from_env();
 
-    zip_epub(args.out_filename, args.in_paths);
+    zip_epub(args.out_filename, args.in_paths).unwrap();
 }
