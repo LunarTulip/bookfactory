@@ -10,7 +10,7 @@ struct Args {
     out_filename: String,
     /// input files and directories to zip
     #[argh(positional)]
-    in_paths: Vec<String>
+    in_paths: Vec<String>,
 }
 
 fn main() {
