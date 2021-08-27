@@ -1,20 +1,8 @@
-use argh::FromArgs;
 use std::io::Write;
 use std::fs::{metadata, read, read_dir, File};
 use std::path::{Path, PathBuf};
 use zip::CompressionMethod;
 use zip::write::{FileOptions, ZipWriter};
-
-/// Build EPUB files. [ADD MORE DETAIL HERE]
-#[derive(FromArgs)]
-struct Args {
-    /// output filename
-    #[argh(positional)]
-    out_filename: String,
-    /// input files and directories to zip
-    #[argh(positional)]
-    in_paths: Vec<String>
-}
 
 fn add_mimetype(zip_file: &mut ZipWriter<File>) {
     let mimetype_options = FileOptions::default().compression_method(CompressionMethod::Stored);
@@ -30,8 +18,7 @@ fn add_subdir_member<P: AsRef<Path> + Clone>(zip_file: &mut ZipWriter<File>, pat
         let file_contents = read(path.clone()).unwrap();
         zip_file.start_file(path_within_zip_file.into_os_string().into_string().unwrap(), FileOptions::default()).unwrap();
         zip_file.write(&file_contents).unwrap();
-    }
-    else if path_metadata.is_dir() {
+    } else if path_metadata.is_dir() {
         for dir_entry in read_dir(path.clone()).unwrap() {
             let dir_entry_path = dir_entry.unwrap().path();
             add_subdir_member(zip_file, dir_entry_path, path_within_zip_file.clone())
@@ -47,8 +34,7 @@ fn add_root_level_file_or_dir<P: AsRef<Path> + Clone>(zip_file: &mut ZipWriter<F
         let file_contents = read(path.clone()).unwrap();
         zip_file.start_file(file_or_dir_name, FileOptions::default()).unwrap();
         zip_file.write(&file_contents).unwrap();
-    }
-    else if path_metadata.is_dir() {
+    } else if path_metadata.is_dir() {
         for dir_entry in read_dir(path.clone()).unwrap() {
             let dir_entry_path = dir_entry.unwrap().path();
             add_subdir_member(zip_file, dir_entry_path, PathBuf::from(file_or_dir_name))
@@ -56,15 +42,13 @@ fn add_root_level_file_or_dir<P: AsRef<Path> + Clone>(zip_file: &mut ZipWriter<F
     }
 }
 
-fn main() {
-    let args: Args = argh::from_env();
-
-    let epub_file = File::create(args.out_filename).unwrap();
+pub fn zip_epub(output_filename: String, input_files_and_dirs: Vec<String>) {
+    let epub_file = File::create(output_filename).unwrap();
     let mut zip_file = ZipWriter::new(epub_file);
 
     add_mimetype(&mut zip_file);
-    for path in args.in_paths {
-        add_root_level_file_or_dir(&mut zip_file, &path)
+    for path in input_files_and_dirs {
+        add_root_level_file_or_dir(&mut zip_file, path)
     }
 
     zip_file.finish().unwrap();
