@@ -1,1 +1,1 @@
-pub mod zip_epub;
+pub mod zip;

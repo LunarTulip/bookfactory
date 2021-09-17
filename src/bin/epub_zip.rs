@@ -1,4 +1,4 @@
-use build_epub::zip_epub::zip_epub;
+use build_epub::zip::zip_epub;
 
 use argh::FromArgs;
 
