@@ -1,6 +1,3 @@
-mod zip_recursive;
-mod epub;
+mod zip;
 
-pub(crate) use zip_recursive::zip_recursive;
-
-pub use epub::zip_epub;
+pub(crate) use self::zip::{zip_buffer, zip_path};
