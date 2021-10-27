@@ -108,8 +108,8 @@ pub(crate) struct Config {
     // Root Section
     pub(crate) rootfiles: Option<Vec<Rootfile>>,
     pub(crate) files_to_store: Vec<PathPair>, // Should I try to make this optional?
-    pub(crate) opf_internal_path: String,
-    pub(crate) ncx_internal_path: String,
+    pub(crate) opf_internal_path: Option<String>,
+    pub(crate) ncx_internal_path: Option<String>,
 
     // OPF Section
     pub(crate) metadata: Option<Vec<Metadata>>,

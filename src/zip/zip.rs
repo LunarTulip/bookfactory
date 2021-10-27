@@ -1,6 +1,6 @@
 use std::fmt::Debug;
-use std::fs::{metadata, read, read_dir, File};
-use std::io::{Cursor, Write};
+use std::fs::{metadata, read, read_dir};
+use std::io::{Cursor, Seek, Write};
 use std::mem::drop;
 use std::path::{Path, PathBuf};
 use zip::read::ZipArchive;
@@ -16,8 +16,8 @@ fn p_to_string<P: AsRef<Path> + Clone + Debug>(p: P) -> Result<String, String> {
     ))
 }
 
-fn add_file_with_optional_deflate<P: AsRef<Path> + Clone + Debug>(
-    zip_file: &mut ZipWriter<File>,
+fn add_file_with_optional_deflate<P: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
+    zip_file: &mut ZipWriter<Z>,
     file_contents: Vec<u8>,
     inside_path: P,
 ) -> Result<(), String> {
@@ -62,22 +62,23 @@ fn add_file_with_optional_deflate<P: AsRef<Path> + Clone + Debug>(
 }
 
 pub fn zip_path<P: AsRef<Path> + Clone + Debug, 
-Q: AsRef<Path> + Clone + Debug>(
-    zip_file: &mut ZipWriter<File>,
+Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
+    zip_file: &mut ZipWriter<Z>,
     outside_path: P,
     inside_path: Option<Q>
 ) -> Result<(), String> {
-    let path_metadata = metadata(outside_path.clone()).map_err(|e| e.to_string())?;
+    let path_metadata = metadata(&outside_path).map_err(|e| e.to_string())?;
     let true_inside_path = match inside_path {
-        Some(path) => {
-            let mut as_buf = path.as_ref().to_path_buf();
-            as_buf.push(outside_path.as_ref().file_name().ok_or(format!(
-                "Ill-formed path ending in '..': {:?}",
-                outside_path
-            ))?);
-            as_buf
-        }
-        None => PathBuf::from(outside_path.as_ref().file_name().ok_or(format!("Ill-formed path ending in '..': {:?}", outside_path))?)
+        // Some(path) => {
+        //     let mut as_buf = path.as_ref().to_path_buf();
+        //     as_buf.push(outside_path.as_ref().file_name().ok_or(format!(
+        //         "Ill-formed path ending in '..': {:?}",
+        //         outside_path
+        //     ))?);
+        //     as_buf
+        // }
+        Some(path) => path.as_ref().to_path_buf(),
+        None => PathBuf::from(outside_path.as_ref().file_name().ok_or(format!("Ill-formed path ending in '..': {:?}", outside_path))?),
     };
 
     if path_metadata.is_file() {
@@ -85,14 +86,16 @@ Q: AsRef<Path> + Clone + Debug>(
         add_file_with_optional_deflate(zip_file, file_contents, true_inside_path)?;
     } else if path_metadata.is_dir() {
         for dir_entry in read_dir(outside_path).map_err(|e| e.to_string())? {
-            let dir_entry_path = dir_entry.map_err(|e| e.to_string())?.path();
-            zip_path(zip_file, dir_entry_path, Some(true_inside_path.clone()))?;
+            let entry_outside_path = dir_entry.map_err(|e| e.to_string())?.path();
+            let mut entry_inside_path = true_inside_path.clone();
+            entry_inside_path.push(entry_outside_path.file_name().ok_or(format!("Ill-formed path ending in '..': {:?}", entry_outside_path))?);
+            zip_path(zip_file, entry_outside_path, Some(entry_inside_path))?;
         }
     }
 
     Ok(())
 }
 
-pub fn zip_buffer<P: AsRef<Path> + Clone + Debug>(zip_file: &mut ZipWriter<File>, buffer: Vec<u8>, inside_path: P) -> Result<(), String> {
+pub fn zip_buffer<P: AsRef<Path> + Clone + Debug, Z: Write + Seek>(zip_file: &mut ZipWriter<Z>, buffer: Vec<u8>, inside_path: P) -> Result<(), String> {
     add_file_with_optional_deflate(zip_file, buffer, inside_path)
 }
