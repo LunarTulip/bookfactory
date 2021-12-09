@@ -1,4 +1,5 @@
-use crate::toml::parse_config::Config;
+use crate::epub::epub2::config::Epub2Config;
+
 use yaserde_derive::YaSerialize;
 
 #[derive(YaSerialize)]
@@ -26,12 +27,12 @@ struct Container {
     rootfiles: Rootfiles,
 }
 
-pub(crate) fn build_container_xml(config: Config) -> Result<String, String> {
+pub(crate) fn build_container_xml(config: &Epub2Config, add_opf_to_rootfiles: bool) -> Result<String, String> {
     let container = Container {
         version: String::from("1.0"),
         xmlns: String::from("urn:oasis:names:tc:opendocument:xmlns:container"),
         rootfiles: Rootfiles {
-            rootfile: match config.rootfiles {
+            rootfile: match &config.rootfiles {
                 None => vec![Rootfile {
                     full_path: String::from("OEBPS/content.opf"),
                     media_type: String::from("application/oebps-package+xml"),
@@ -41,7 +42,7 @@ pub(crate) fn build_container_xml(config: Config) -> Result<String, String> {
                         full_path: rootfile.path.clone(),
                         media_type: rootfile.media_type.clone(),
                     }).collect();
-                    if !rootfiles_vec.iter().any(|rootfile| rootfile.media_type == String::from("application/oebps-package+xml")) {
+                    if add_opf_to_rootfiles {
                         xml_rootfiles_vec.push(Rootfile {
                             full_path: String::from("OEBPS/content.opf"),
                             media_type: String::from("application/oebps-package+xml"),

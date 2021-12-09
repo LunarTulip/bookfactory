@@ -69,14 +69,6 @@ Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
 ) -> Result<(), String> {
     let path_metadata = metadata(&outside_path).map_err(|e| e.to_string())?;
     let true_inside_path = match inside_path {
-        // Some(path) => {
-        //     let mut as_buf = path.as_ref().to_path_buf();
-        //     as_buf.push(outside_path.as_ref().file_name().ok_or(format!(
-        //         "Ill-formed path ending in '..': {:?}",
-        //         outside_path
-        //     ))?);
-        //     as_buf
-        // }
         Some(path) => path.as_ref().to_path_buf(),
         None => PathBuf::from(outside_path.as_ref().file_name().ok_or(format!("Ill-formed path ending in '..': {:?}", outside_path))?),
     };
