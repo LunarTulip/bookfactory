@@ -27,7 +27,10 @@ struct Container {
     rootfiles: Rootfiles,
 }
 
-pub(crate) fn build_container_xml(config: &Epub2Config, add_opf_to_rootfiles: bool) -> Result<String, String> {
+pub(crate) fn build_container_xml(
+    config: &Epub2Config,
+    add_opf_to_rootfiles: bool,
+) -> Result<String, String> {
     let container = Container {
         version: String::from("1.0"),
         xmlns: String::from("urn:oasis:names:tc:opendocument:xmlns:container"),
@@ -38,10 +41,13 @@ pub(crate) fn build_container_xml(config: &Epub2Config, add_opf_to_rootfiles: bo
                     media_type: String::from("application/oebps-package+xml"),
                 }],
                 Some(rootfiles_vec) => {
-                    let mut xml_rootfiles_vec: Vec<Rootfile> = rootfiles_vec.iter().map(|rootfile| Rootfile {
-                        full_path: rootfile.path.clone(),
-                        media_type: rootfile.media_type.clone(),
-                    }).collect();
+                    let mut xml_rootfiles_vec: Vec<Rootfile> = rootfiles_vec
+                        .iter()
+                        .map(|rootfile| Rootfile {
+                            full_path: rootfile.path.clone(),
+                            media_type: rootfile.media_type.clone(),
+                        })
+                        .collect();
                     if add_opf_to_rootfiles {
                         xml_rootfiles_vec.push(Rootfile {
                             full_path: String::from("OEBPS/content.opf"),
@@ -51,8 +57,8 @@ pub(crate) fn build_container_xml(config: &Epub2Config, add_opf_to_rootfiles: bo
 
                     xml_rootfiles_vec
                 }
-            }
-        }
+            },
+        },
     };
 
     let yaserde_cfg = yaserde::ser::Config {

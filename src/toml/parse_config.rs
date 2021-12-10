@@ -27,10 +27,18 @@ pub fn parse_config<P: AsRef<Path> + Display>(filename: P) -> Result<Vec<Recipe>
                             recipe: Value::Table(table_minus_format),
                         });
                     }
-                    _ => return Err(format!("Recipe {} in config file {} contains no 'format' string value.", name, filename)),
+                    _ => {
+                        return Err(format!(
+                            "Recipe {} in config file {} contains no 'format' string value.",
+                            name, filename
+                        ))
+                    }
                 }
             } else {
-                return Err(format!("Config file {} contains top-level element which is not a recipe header: {}", name, filename))
+                return Err(format!(
+                    "Config file {} contains top-level element which is not a recipe header: {}",
+                    name, filename
+                ));
             }
         }
         if !recipes.is_empty() {
@@ -39,6 +47,9 @@ pub fn parse_config<P: AsRef<Path> + Display>(filename: P) -> Result<Vec<Recipe>
             Err(format!("Config file {} contains no recipes.", filename))
         }
     } else {
-        Err(format!("Config file {} has non-table top-level element. (This shouldn't be possible.)", filename))
+        Err(format!(
+            "Config file {} has non-table top-level element. (This shouldn't be possible.)",
+            filename
+        ))
     }
 }

@@ -1,5 +1,5 @@
-use crate::epub::epub2::config::Epub2Config;
 use crate::epub::epub2::config;
+use crate::epub::epub2::config::Epub2Config;
 use crate::epub::epub2::helpers::get_manifest_path_from_idref;
 
 use sys_locale::get_locale;
@@ -143,7 +143,8 @@ struct Meta {
 }
 
 #[derive(YaSerialize)]
-enum MetadataItem { // THIS IS CURRENTLY BROKEN DUE TO YASERDE ENUM ISSUES; IT DOESN't OUTPUT WELL-FORMED METADATA AT THIS TIME. COME BACK AND FIX IT BEFORE ANY REAL RELEASE.
+enum MetadataItem {
+    // THIS IS CURRENTLY BROKEN DUE TO YASERDE ENUM ISSUES; IT DOESN't OUTPUT WELL-FORMED METADATA AT THIS TIME. COME BACK AND FIX IT BEFORE ANY REAL RELEASE.
     #[yaserde(rename = "dc:title")]
     DcTitle(Title),
     #[yaserde(rename = "dc:identifier")]
@@ -283,7 +284,9 @@ struct Package {
 //   Build   //
 ///////////////
 
-fn get_uid_and_title_and_metadata(config: &Epub2Config) -> Result<(String, String, Metadata), String> {
+fn get_uid_and_title_and_metadata(
+    config: &Epub2Config,
+) -> Result<(String, String, Metadata), String> {
     match &config.metadata {
         Some(config_metadata) => {
             let mut metadata = Vec::new();
@@ -368,14 +371,26 @@ fn get_uid_and_title_and_metadata(config: &Epub2Config) -> Result<(String, Strin
 
             // Generate any missing required metadata
 
-            if !metadata.iter().any(|item| if let MetadataItem::DcTitle(_) = item { true } else { false }) {
+            if !metadata.iter().any(|item| {
+                if let MetadataItem::DcTitle(_) = item {
+                    true
+                } else {
+                    false
+                }
+            }) {
                 metadata.push(MetadataItem::DcTitle(Title {
                     xml_lang: None,
                     body: String::from("Untitled"),
                 }))
             };
 
-            if !metadata.iter().any(|item| if let MetadataItem::DcIdentifier(_) = item { true } else { false }) {
+            if !metadata.iter().any(|item| {
+                if let MetadataItem::DcIdentifier(_) = item {
+                    true
+                } else {
+                    false
+                }
+            }) {
                 metadata.push(MetadataItem::DcIdentifier(Identifier {
                     id: Some(String::from("BookId")), // Figure out a better default here maybe
                     opf_scheme: Some(String::from("UUID")),
@@ -383,18 +398,30 @@ fn get_uid_and_title_and_metadata(config: &Epub2Config) -> Result<(String, Strin
                 }))
             }
 
-            if !metadata.iter().any(|item| if let MetadataItem::DcLanguage(_) = item { true } else { false }) {
+            if !metadata.iter().any(|item| {
+                if let MetadataItem::DcLanguage(_) = item {
+                    true
+                } else {
+                    false
+                }
+            }) {
                 metadata.push(MetadataItem::DcLanguage(Language {
                     body: match get_locale() {
                         Some(locale) => locale,
                         None => String::from("en"),
-                    }
+                    },
                 }))
             };
 
             // Get UID and return
 
-            let uid = match metadata.iter().find(|item| if let MetadataItem::DcIdentifier(identifier) = item { identifier.id.is_some() } else { false }) {
+            let uid = match metadata.iter().find(|item| {
+                if let MetadataItem::DcIdentifier(identifier) = item {
+                    identifier.id.is_some()
+                } else {
+                    false
+                }
+            }) {
                 Some(MetadataItem::DcIdentifier(identifier)) => identifier.id.clone().unwrap(),
                 _ => {
                     match metadata.iter_mut().find(|item| if let MetadataItem::DcIdentifier(_) = item { true } else { false }) {
@@ -407,9 +434,19 @@ fn get_uid_and_title_and_metadata(config: &Epub2Config) -> Result<(String, Strin
                 }
             };
 
-            let title = match metadata.iter().find(|item| if let MetadataItem::DcTitle(_) = item { true } else { false }) {
+            let title = match metadata.iter().find(|item| {
+                if let MetadataItem::DcTitle(_) = item {
+                    true
+                } else {
+                    false
+                }
+            }) {
                 Some(MetadataItem::DcTitle(title)) => title.body.clone(),
-                _ => return Err(String::from("No title found after title's presence should have been ensured.")),
+                _ => {
+                    return Err(String::from(
+                        "No title found after title's presence should have been ensured.",
+                    ))
+                }
             };
 
             let metadata = Metadata {
@@ -424,19 +461,23 @@ fn get_uid_and_title_and_metadata(config: &Epub2Config) -> Result<(String, Strin
             let metadata = Metadata {
                 xmlns_dc: Some(String::from("http://purl.org/dc/elements/1.1/")),
                 xmlns_opf: Some(String::from("http://www.idpf.org/2007/opf")),
-                metadata: vec![MetadataItem::DcTitle(Title {
-                    xml_lang: None,
-                    body: String::from("Untitled"),
-                }), MetadataItem::DcIdentifier(Identifier {
-                    id: Some(String::from("BookId")), // Figure out a better default here maybe
-                    opf_scheme: Some(String::from("UUID")),
-                    body: format!("{}", Uuid::new_v4()),
-                }), MetadataItem::DcLanguage(Language {
-                    body: match get_locale() {
-                        Some(locale) => locale,
-                        None => String::from("en"),
-                    },
-                })],
+                metadata: vec![
+                    MetadataItem::DcTitle(Title {
+                        xml_lang: None,
+                        body: String::from("Untitled"),
+                    }),
+                    MetadataItem::DcIdentifier(Identifier {
+                        id: Some(String::from("BookId")), // Figure out a better default here maybe
+                        opf_scheme: Some(String::from("UUID")),
+                        body: format!("{}", Uuid::new_v4()),
+                    }),
+                    MetadataItem::DcLanguage(Language {
+                        body: match get_locale() {
+                            Some(locale) => locale,
+                            None => String::from("en"),
+                        },
+                    }),
+                ],
             };
 
             Ok((String::from("BookId"), String::from("Untitled"), metadata))
@@ -455,63 +496,82 @@ fn get_manifest(config: &Epub2Config, ncx_id: &str, ncx_path_from_opf: &str) -> 
         required_namespace: None,
     }];
 
-    items_vec.append(&mut config.manifest.iter().map(|item| Item {
-        id: item.id.clone(),
-        href: item.inside_path_from_opf.clone(),
-        media_type: item.media_type.clone(),
-        fallback: item.fallback.clone(),
-        fallback_style: item.fallback_style.clone(),
-        required_modules: item.required_modules.clone(),
-        required_namespace: item.required_namespace.clone(),
-    }).collect());
+    items_vec.append(
+        &mut config
+            .manifest
+            .iter()
+            .map(|item| Item {
+                id: item.id.clone(),
+                href: item.inside_path_from_opf.clone(),
+                media_type: item.media_type.clone(),
+                fallback: item.fallback.clone(),
+                fallback_style: item.fallback_style.clone(),
+                required_modules: item.required_modules.clone(),
+                required_namespace: item.required_namespace.clone(),
+            })
+            .collect(),
+    );
 
-    Manifest {
-        item: items_vec,
-    }
+    Manifest { item: items_vec }
 }
 
 fn id_falls_back_to_types(config: &Epub2Config, id: &str, target_types: &Vec<&str>) -> bool {
     match config.manifest.iter().find(|item| &item.id == id) {
-        Some(item) => if target_types.contains(&item.media_type.as_ref()) {
-            true
-        } else if item.fallback.is_some() {
-            id_falls_back_to_types(config, &item.fallback.as_ref().unwrap(), target_types)
-        } else {
-            false
-        },
+        Some(item) => {
+            if target_types.contains(&item.media_type.as_ref()) {
+                true
+            } else if item.fallback.is_some() {
+                id_falls_back_to_types(config, &item.fallback.as_ref().unwrap(), target_types)
+            } else {
+                false
+            }
+        }
         None => false,
     }
 }
 
 fn get_spine(config: &Epub2Config, ncx_id: &str) -> Result<Spine, String> {
     let first_linearizable_manifest_item = match config.manifest.iter().find(|item| {
-        &item.media_type == "application/xhtml+xml" ||
-        &item.media_type == "application/x-dtbook+xml" ||
-        id_falls_back_to_types(config, &item.id, &vec!["application/xhtml+xml", "application/x-dtbook+xml"])
+        &item.media_type == "application/xhtml+xml"
+            || &item.media_type == "application/x-dtbook+xml"
+            || id_falls_back_to_types(
+                config,
+                &item.id,
+                &vec!["application/xhtml+xml", "application/x-dtbook+xml"],
+            )
     }) {
         Some(item) => item,
-        None => return Err(String::from("Manifest contains no items legally placeable within the spine.")),
+        None => {
+            return Err(String::from(
+                "Manifest contains no items legally placeable within the spine.",
+            ))
+        }
     };
 
     let mut itemrefs = Vec::new();
     match &config.spine {
-        Some(spine) => for itemref in spine {
-            let (idref, linear) = match itemref {
-                config::Itemref::RawIdref(idref) => (idref, None),
-                config::Itemref::CookedIdref {idref, linear} => (idref, match linear {
-                    Some(false) => Some(String::from("no")),
-                    _ => None,
-                }),
-            };
-            itemrefs.push(Itemref {
-                linear: linear,
-                idref: idref.clone(),
-            });
-        },
+        Some(spine) => {
+            for itemref in spine {
+                let (idref, linear) = match itemref {
+                    config::Itemref::RawIdref(idref) => (idref, None),
+                    config::Itemref::CookedIdref { idref, linear } => (
+                        idref,
+                        match linear {
+                            Some(false) => Some(String::from("no")),
+                            _ => None,
+                        },
+                    ),
+                };
+                itemrefs.push(Itemref {
+                    linear: linear,
+                    idref: idref.clone(),
+                });
+            }
+        }
         None => itemrefs.push(Itemref {
             idref: first_linearizable_manifest_item.id.clone(),
             linear: None,
-        })
+        }),
     }
 
     Ok(Spine {
@@ -529,7 +589,11 @@ fn get_guide(config: &Epub2Config) -> Result<Option<Guide>, String> {
                 references.push(Reference {
                     reference_type: reference.reference_type.clone(),
                     title: reference.title.clone(),
-                    href: get_manifest_path_from_idref(config, &reference.idref, reference.fragment.as_ref())?,
+                    href: get_manifest_path_from_idref(
+                        config,
+                        &reference.idref,
+                        reference.fragment.as_ref(),
+                    )?,
                 });
             }
             Ok(Some(Guide {
@@ -539,7 +603,11 @@ fn get_guide(config: &Epub2Config) -> Result<Option<Guide>, String> {
     }
 }
 
-pub(crate) fn build_opf_xml_and_get_metadata(config: &Epub2Config, ncx_id: &str, ncx_path_from_opf: &str) -> Result<(String, String, String, String), String> {
+pub(crate) fn build_opf_xml_and_get_metadata(
+    config: &Epub2Config,
+    ncx_id: &str,
+    ncx_path_from_opf: &str,
+) -> Result<(String, String, String, String), String> {
     let (uid, title, metadata) = get_uid_and_title_and_metadata(&config)?;
     let opf = Package {
         version: String::from("2.0"),
@@ -557,8 +625,17 @@ pub(crate) fn build_opf_xml_and_get_metadata(config: &Epub2Config, ncx_id: &str,
     };
     let opf_xml = yaserde::ser::to_string_with_config(&opf, &yaserde_cfg)?;
 
-    let first_linear_spine_href = match opf.spine.itemref.iter().find(|itemref| itemref.linear.is_some()) {
-        None => return Err(String::from("No linear items found in spine after their presence should be guaranteed.")),
+    let first_linear_spine_href = match opf
+        .spine
+        .itemref
+        .iter()
+        .find(|itemref| itemref.linear.is_some())
+    {
+        None => {
+            return Err(String::from(
+                "No linear items found in spine after their presence should be guaranteed.",
+            ))
+        }
         Some(itemref) => get_manifest_path_from_idref(config, &itemref.idref, None)?,
     };
 

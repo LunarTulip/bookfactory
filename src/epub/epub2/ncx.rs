@@ -1,5 +1,5 @@
-use crate::epub::epub2::config::Epub2Config;
 use crate::epub::epub2::config;
+use crate::epub::epub2::config::Epub2Config;
 use crate::epub::epub2::helpers::get_manifest_path_from_idref;
 
 use yaserde_derive::YaSerialize;
@@ -85,7 +85,7 @@ struct PageTarget {
 #[derive(YaSerialize)]
 struct PageList {
     #[yaserde(child, rename = "pageTarget")]
-    pagetarget: Vec<PageTarget>
+    pagetarget: Vec<PageTarget>,
 }
 
 /////////////////
@@ -135,9 +135,17 @@ struct Ncx {
 //   Build   //
 ///////////////
 
-fn convert_navpoint(config: &Epub2Config, other_format_navpoint: &config::NavPoint) -> Result<NavPoint, String> {
+fn convert_navpoint(
+    config: &Epub2Config,
+    other_format_navpoint: &config::NavPoint,
+) -> Result<NavPoint, String> {
     Ok(match other_format_navpoint {
-        config::NavPoint::WithSimpleLabel { label, idref, fragment, children } => NavPoint {
+        config::NavPoint::WithSimpleLabel {
+            label,
+            idref,
+            fragment,
+            children,
+        } => NavPoint {
             navlabel: vec![NavLabel {
                 xml_lang: None,
                 text: label.clone(),
@@ -151,14 +159,22 @@ fn convert_navpoint(config: &Epub2Config, other_format_navpoint: &config::NavPoi
                         children_vec.push(convert_navpoint(config, child)?);
                     }
                     children_vec
-                },
+                }
             },
         },
-        config::NavPoint::WithComplexLabels { labels, idref, fragment, children } => NavPoint {
-            navlabel: labels.iter().map(|label| NavLabel {
-                xml_lang: label.lang.clone(),
-                text: label.label.clone(),
-            }).collect(),
+        config::NavPoint::WithComplexLabels {
+            labels,
+            idref,
+            fragment,
+            children,
+        } => NavPoint {
+            navlabel: labels
+                .iter()
+                .map(|label| NavLabel {
+                    xml_lang: label.lang.clone(),
+                    text: label.label.clone(),
+                })
+                .collect(),
             content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
             navpoint: match children {
                 None => Vec::new(),
@@ -166,15 +182,19 @@ fn convert_navpoint(config: &Epub2Config, other_format_navpoint: &config::NavPoi
                     let mut children_vec = Vec::new();
                     for child in children {
                         children_vec.push(convert_navpoint(config, child)?);
-                    };
+                    }
                     children_vec
-                },
+                }
             },
         },
     })
 }
 
-fn get_navmap(config: &Epub2Config, doctitle: &str, first_linear_spine_href: &str) -> Result<NavMap, String> {
+fn get_navmap(
+    config: &Epub2Config,
+    doctitle: &str,
+    first_linear_spine_href: &str,
+) -> Result<NavMap, String> {
     Ok(match &config.navmap {
         None => NavMap {
             navpoint: vec![NavPoint {
@@ -184,14 +204,14 @@ fn get_navmap(config: &Epub2Config, doctitle: &str, first_linear_spine_href: &st
                 }],
                 content: String::from(first_linear_spine_href),
                 navpoint: Vec::new(),
-            }]
+            }],
         },
         Some(navmap) => NavMap {
             navpoint: {
                 let mut navpoints_vec = Vec::new();
                 for navpoint in navmap {
                     navpoints_vec.push(convert_navpoint(config, navpoint)?);
-                };
+                }
                 navpoints_vec
             },
         },
@@ -206,7 +226,14 @@ fn get_pagelist(config: &Epub2Config) -> Result<Option<PageList>, String> {
                 let mut pagetargets_vec = Vec::new();
                 for pagetarget in pagelist {
                     pagetargets_vec.push(match pagetarget {
-                        config::PageTarget::WithSimpleLabel { label, id, target_type, value, idref, fragment } => PageTarget {
+                        config::PageTarget::WithSimpleLabel {
+                            label,
+                            id,
+                            target_type,
+                            value,
+                            idref,
+                            fragment,
+                        } => PageTarget {
                             id: id.clone(),
                             pagetarget_type: target_type.clone(),
                             value: value.clone(),
@@ -214,46 +241,78 @@ fn get_pagelist(config: &Epub2Config) -> Result<Option<PageList>, String> {
                                 xml_lang: None,
                                 text: label.clone(),
                             }],
-                            content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
+                            content: get_manifest_path_from_idref(
+                                config,
+                                &idref,
+                                fragment.as_ref(),
+                            )?,
                         },
-                        config::PageTarget::WithComplexLabels { labels, id, target_type, value, idref, fragment } => PageTarget {
+                        config::PageTarget::WithComplexLabels {
+                            labels,
+                            id,
+                            target_type,
+                            value,
+                            idref,
+                            fragment,
+                        } => PageTarget {
                             id: id.clone(),
                             pagetarget_type: target_type.clone(),
                             value: value.clone(),
-                            navlabel: labels.iter().map(|label| NavLabel {
-                                xml_lang: label.lang.clone(),
-                                text: label.label.clone(),
-                            }).collect(),
-                            content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
+                            navlabel: labels
+                                .iter()
+                                .map(|label| NavLabel {
+                                    xml_lang: label.lang.clone(),
+                                    text: label.label.clone(),
+                                })
+                                .collect(),
+                            content: get_manifest_path_from_idref(
+                                config,
+                                &idref,
+                                fragment.as_ref(),
+                            )?,
                         },
                     });
-                };
+                }
                 pagetargets_vec
-            }
-        }))
+            },
+        })),
     }
 }
 
-fn convert_navlist(config: &Epub2Config, other_format_list: &Vec<config::NavTarget>) -> Result<Vec<NavTarget>, String> {
+fn convert_navlist(
+    config: &Epub2Config,
+    other_format_list: &Vec<config::NavTarget>,
+) -> Result<Vec<NavTarget>, String> {
     let mut navtarget_vec = Vec::new();
     for navtarget in other_format_list {
         navtarget_vec.push(match navtarget {
-            config::NavTarget::WithSimpleLabel { label, idref, fragment } => NavTarget {
+            config::NavTarget::WithSimpleLabel {
+                label,
+                idref,
+                fragment,
+            } => NavTarget {
                 navlabel: vec![NavLabel {
                     xml_lang: None,
                     text: label.clone(),
                 }],
-                content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?
+                content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
             },
-            config::NavTarget::WithComplexLabels { labels, idref, fragment } => NavTarget {
-                navlabel: labels.iter().map(|label| NavLabel {
-                    xml_lang: label.lang.clone(),
-                    text: label.label.clone(),
-                }).collect(),
-                content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?
+            config::NavTarget::WithComplexLabels {
+                labels,
+                idref,
+                fragment,
+            } => NavTarget {
+                navlabel: labels
+                    .iter()
+                    .map(|label| NavLabel {
+                        xml_lang: label.lang.clone(),
+                        text: label.label.clone(),
+                    })
+                    .collect(),
+                content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
             },
         });
-    };
+    }
     Ok(navtarget_vec)
 }
 
@@ -272,20 +331,28 @@ fn get_navlists(config: &Epub2Config) -> Result<Vec<NavList>, String> {
                         navtarget: convert_navlist(config, list)?,
                     },
                     config::NavList::WithComplexLabels { labels, list } => NavList {
-                        navlabel: labels.iter().map(|label| NavLabel {
-                            xml_lang: label.lang.clone(),
-                            text: label.label.clone(),
-                        }).collect(),
+                        navlabel: labels
+                            .iter()
+                            .map(|label| NavLabel {
+                                xml_lang: label.lang.clone(),
+                                text: label.label.clone(),
+                            })
+                            .collect(),
                         navtarget: convert_navlist(config, list)?,
-                    }
+                    },
                 });
-            };
+            }
             Ok(navlists_vec)
         }
     }
 }
 
-pub(crate) fn build_ncx_xml(config: &Epub2Config, uid: &str, doctitle: &str, first_linear_spine_href: &str) -> Result<String, String> {
+pub(crate) fn build_ncx_xml(
+    config: &Epub2Config,
+    uid: &str,
+    doctitle: &str,
+    first_linear_spine_href: &str,
+) -> Result<String, String> {
     let ncx = Ncx {
         version: String::from("2005-1"),
         xmlns: String::from("http://www.daisy.org/z3986/2005/ncx/"),
@@ -293,7 +360,7 @@ pub(crate) fn build_ncx_xml(config: &Epub2Config, uid: &str, doctitle: &str, fir
             meta: Meta {
                 name: String::from("dtb:uid"),
                 content: String::from(uid),
-            }
+            },
         },
         doctitle: DocTitle {
             text: String::from(doctitle),

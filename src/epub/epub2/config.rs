@@ -26,13 +26,13 @@ pub(crate) enum Metadata {
         content: String,
 
         // Attributes
-        id: Option<String>, // For use with dc:identifier
+        id: Option<String>,     // For use with dc:identifier
         scheme: Option<String>, // opf:scheme
         #[serde(rename = "file-as")]
         file_as: Option<String>, // opf:file-as
-        role: Option<String>, // opf:role
-        event: Option<String>, // opf:event
-        lang: Option<String>, // xml:lang
+        role: Option<String>,   // opf:role
+        event: Option<String>,  // opf:event
+        lang: Option<String>,   // xml:lang
     },
     CustomMetadata {
         #[serde(rename = "custom_name")]
@@ -64,10 +64,7 @@ pub(crate) struct ManifestItem {
 #[serde(untagged)]
 pub(crate) enum Itemref {
     RawIdref(String),
-    CookedIdref {
-        idref: String,
-        linear: Option<bool>,
-    },
+    CookedIdref { idref: String, linear: Option<bool> },
 }
 
 #[derive(Deserialize)]
@@ -108,7 +105,7 @@ pub(crate) enum NavPoint {
         labels: Vec<NavLabel>,
         idref: String,
         fragment: Option<String>,
-        children: Option<Vec<NavPoint>>
+        children: Option<Vec<NavPoint>>,
     },
 }
 
@@ -160,7 +157,7 @@ pub(crate) enum NavList {
     WithComplexLabels {
         labels: Vec<NavLabel>,
         list: Vec<NavTarget>,
-    }
+    },
 }
 
 ///////////////////////
@@ -199,7 +196,11 @@ pub(crate) struct Epub2Config {
 }
 
 pub(crate) fn parse_epub2_recipe(recipe: &Recipe) -> Result<Epub2Config, String> {
-    let config = recipe.recipe.clone().try_into().map_err(|s| s.to_string())?;
+    let config = recipe
+        .recipe
+        .clone()
+        .try_into()
+        .map_err(|s| s.to_string())?;
 
     Ok(config)
 }

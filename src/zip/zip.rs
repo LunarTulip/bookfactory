@@ -61,16 +61,18 @@ fn add_file_with_optional_deflate<P: AsRef<Path> + Clone + Debug, Z: Write + See
     Ok(())
 }
 
-pub fn zip_path<P: AsRef<Path> + Clone + Debug, 
-Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
+pub fn zip_path<P: AsRef<Path> + Clone + Debug, Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
     zip_file: &mut ZipWriter<Z>,
     outside_path: P,
-    inside_path: Option<Q>
+    inside_path: Option<Q>,
 ) -> Result<(), String> {
     let path_metadata = metadata(&outside_path).map_err(|e| e.to_string())?;
     let true_inside_path = match inside_path {
         Some(path) => path.as_ref().to_path_buf(),
-        None => PathBuf::from(outside_path.as_ref().file_name().ok_or(format!("Ill-formed path ending in '..': {:?}", outside_path))?),
+        None => PathBuf::from(outside_path.as_ref().file_name().ok_or(format!(
+            "Ill-formed path ending in '..': {:?}",
+            outside_path
+        ))?),
     };
 
     if path_metadata.is_file() {
@@ -80,7 +82,10 @@ Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
         for dir_entry in read_dir(outside_path).map_err(|e| e.to_string())? {
             let entry_outside_path = dir_entry.map_err(|e| e.to_string())?.path();
             let mut entry_inside_path = true_inside_path.clone();
-            entry_inside_path.push(entry_outside_path.file_name().ok_or(format!("Ill-formed path ending in '..': {:?}", entry_outside_path))?);
+            entry_inside_path.push(entry_outside_path.file_name().ok_or(format!(
+                "Ill-formed path ending in '..': {:?}",
+                entry_outside_path
+            ))?);
             zip_path(zip_file, entry_outside_path, Some(entry_inside_path))?;
         }
     }
@@ -88,6 +93,10 @@ Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
     Ok(())
 }
 
-pub fn zip_buffer<P: AsRef<Path> + Clone + Debug, Z: Write + Seek>(zip_file: &mut ZipWriter<Z>, buffer: Vec<u8>, inside_path: P) -> Result<(), String> {
+pub fn zip_buffer<P: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
+    zip_file: &mut ZipWriter<Z>,
+    buffer: Vec<u8>,
+    inside_path: P,
+) -> Result<(), String> {
     add_file_with_optional_deflate(zip_file, buffer, inside_path)
 }
