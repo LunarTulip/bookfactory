@@ -1,5 +1,6 @@
 use crate::epub::epub2::config::Epub2Config;
 use crate::epub::epub2::config;
+use crate::epub::epub2::helpers::get_manifest_path_from_idref;
 
 use sys_locale::get_locale;
 use uuid::Uuid;
@@ -282,7 +283,7 @@ struct Package {
 //   Build   //
 ///////////////
 
-fn get_uid_and_metadata(config: &Epub2Config) -> Result<(String, Metadata), String> {
+fn get_uid_and_title_and_metadata(config: &Epub2Config) -> Result<(String, String, Metadata), String> {
     match &config.metadata {
         Some(config_metadata) => {
             let mut metadata = Vec::new();
@@ -406,13 +407,18 @@ fn get_uid_and_metadata(config: &Epub2Config) -> Result<(String, Metadata), Stri
                 }
             };
 
+            let title = match metadata.iter().find(|item| if let MetadataItem::DcTitle(_) = item { true } else { false }) {
+                Some(MetadataItem::DcTitle(title)) => title.body.clone(),
+                _ => return Err(String::from("No title found after title's presence should have been ensured.")),
+            };
+
             let metadata = Metadata {
                 xmlns_dc: Some(String::from("http://purl.org/dc/elements/1.1/")),
                 xmlns_opf: Some(String::from("http://www.idpf.org/2007/opf")),
                 metadata: metadata,
             };
 
-            Ok((uid, metadata))
+            Ok((uid, title, metadata))
         }
         None => {
             let metadata = Metadata {
@@ -433,7 +439,7 @@ fn get_uid_and_metadata(config: &Epub2Config) -> Result<(String, Metadata), Stri
                 })],
             };
 
-            Ok((String::from("BookId"), metadata))
+            Ok((String::from("BookId"), String::from("Untitled"), metadata))
         }
     }
 }
@@ -520,19 +526,10 @@ fn get_guide(config: &Epub2Config) -> Result<Option<Guide>, String> {
         Some(guide) => {
             let mut references = Vec::new();
             for reference in guide {
-                let reference_manifest_item = match config.manifest.iter().find(|item| item.id == reference.idref) {
-                    Some(item) => item,
-                    None => return Err(format!("Idref {} not found in manifest.", reference.idref)),
-                };
-                let href = match &reference.fragment {
-                    None => reference_manifest_item.inside_path_from_opf.clone(),
-                    Some(fragment) => format!("{}#{}", reference_manifest_item.inside_path_from_opf, fragment),
-                };
-
                 references.push(Reference {
                     reference_type: reference.reference_type.clone(),
                     title: reference.title.clone(),
-                    href: href,
+                    href: get_manifest_path_from_idref(config, &reference.idref, reference.fragment.as_ref())?,
                 });
             }
             Ok(Some(Guide {
@@ -542,12 +539,12 @@ fn get_guide(config: &Epub2Config) -> Result<Option<Guide>, String> {
     }
 }
 
-pub(crate) fn build_opf_xml(config: &Epub2Config, ncx_id: &str, ncx_path_from_opf: &str) -> Result<String, String> {
-    let (uid, metadata) = get_uid_and_metadata(&config)?;
+pub(crate) fn build_opf_xml_and_get_metadata(config: &Epub2Config, ncx_id: &str, ncx_path_from_opf: &str) -> Result<(String, String, String, String), String> {
+    let (uid, title, metadata) = get_uid_and_title_and_metadata(&config)?;
     let opf = Package {
         version: String::from("2.0"),
         xmlns: String::from("http://www.idpf.org/2007/opf"),
-        unique_identifier: uid,
+        unique_identifier: uid.clone(),
         metadata: metadata,
         manifest: get_manifest(&config, ncx_id, ncx_path_from_opf),
         spine: get_spine(&config, ncx_id)?,
@@ -558,6 +555,12 @@ pub(crate) fn build_opf_xml(config: &Epub2Config, ncx_id: &str, ncx_path_from_op
         perform_indent: true,
         ..Default::default()
     };
+    let opf_xml = yaserde::ser::to_string_with_config(&opf, &yaserde_cfg)?;
 
-    yaserde::ser::to_string_with_config(&opf, &yaserde_cfg)
+    let first_linear_spine_href = match opf.spine.itemref.iter().find(|itemref| itemref.linear.is_some()) {
+        None => return Err(String::from("No linear items found in spine after their presence should be guaranteed.")),
+        Some(itemref) => get_manifest_path_from_idref(config, &itemref.idref, None)?,
+    };
+
+    Ok((opf_xml, uid, title, first_linear_spine_href))
 }

@@ -1,6 +1,5 @@
 use crate::epub::epub2::config::parse_epub2_recipe;
-use crate::epub::epub2::container::build_container_xml;
-use crate::epub::epub2::opf::build_opf_xml;
+use crate::epub::epub2::{container::build_container_xml, opf::build_opf_xml_and_get_metadata, ncx::build_ncx_xml};
 use crate::epub::zip::add_epub_mimetype;
 use crate::toml::Recipe;
 use crate::zip::*;
@@ -64,7 +63,7 @@ fn check_inside_path_is_valid(path: &PathBuf) -> Result<(), String> {
 
 
 pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
-    // Parse recipe into build config
+    // Parse recipe into build config and various derivatives thereof
     let config = parse_epub2_recipe(recipe)?;
     let (add_opf_to_rootfiles, opf_path) = match &config.rootfiles {
         None => (true, "OEBPS/content.opf"),
@@ -91,6 +90,8 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
         },
         None => ("ncx", "toc.ncx"),
     };
+    let mut ncx_path = PathBuf::from(opf_parent_dir);
+    ncx_path.push(ncx_path_from_opf);
 
     // Set up zip file
     let mut epub_file_buffer = Vec::<u8>::new();
@@ -124,8 +125,11 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
     let container_xml = build_container_xml(&config, add_opf_to_rootfiles)?;
     zip_buffer(&mut zip_file, container_xml.as_bytes().to_vec(), "META-INF/container.xml")?;
 
-    let opf_xml = build_opf_xml(&config, &ncx_id, &ncx_path_from_opf)?;
+    let (opf_xml, uid, title, first_linear_spine_href) = build_opf_xml_and_get_metadata(&config, &ncx_id, &ncx_path_from_opf)?;
     zip_buffer(&mut zip_file, opf_xml.as_bytes().to_vec(), opf_path)?;
+
+    let ncx_xml = build_ncx_xml(&config, &uid, &title, &first_linear_spine_href)?;
+    zip_buffer(&mut zip_file, ncx_xml.as_bytes().to_vec(), ncx_path)?;
 
     // The rest of the epub goes here once I define its methods
 

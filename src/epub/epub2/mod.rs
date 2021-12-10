@@ -1,6 +1,7 @@
 mod config;
 mod container;
+mod helpers;
 mod opf;
 mod ncx;
 
-pub mod build;
+pub(crate) mod build;
