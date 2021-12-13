@@ -85,7 +85,7 @@ struct Contributor {
 #[derive(YaSerialize)]
 struct Date {
     #[yaserde(attribute, rename: "opf:event")]
-    opf_event: Option<String>, // Limited options; refactor to enum?
+    opf_event: Option<String>,
     #[yaserde(text)]
     body: String,
 }
@@ -144,7 +144,7 @@ struct Meta {
 
 #[derive(YaSerialize)]
 enum MetadataItem {
-    // THIS IS CURRENTLY BROKEN DUE TO YASERDE ENUM ISSUES; IT DOESN't OUTPUT WELL-FORMED METADATA AT THIS TIME. COME BACK AND FIX IT BEFORE ANY REAL RELEASE.
+    // THIS IS CURRENTLY BROKEN DUE TO YASERDE ENUM ISSUES; IT DOESN'T OUTPUT WELL-FORMED METADATA AT THIS TIME. COME BACK AND FIX IT BEFORE ANY REAL RELEASE.
     #[yaserde(rename = "dc:title")]
     DcTitle(Title),
     #[yaserde(rename = "dc:identifier")]
@@ -224,7 +224,7 @@ struct Manifest {
 #[derive(YaSerialize)]
 struct Itemref {
     #[yaserde(attribute)]
-    linear: Option<String>, // Limited options; refactor to enum?
+    linear: Option<String>,
     #[yaserde(attribute)]
     idref: String,
 }
@@ -413,7 +413,7 @@ fn get_uid_and_title_and_metadata(
                 }))
             };
 
-            // Get UID and return
+            // Get UID and title and return
 
             let uid = match metadata.iter().find(|item| {
                 if let MetadataItem::DcIdentifier(identifier) = item {

@@ -163,8 +163,6 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
     let ncx_xml = build_ncx_xml(&config, &uid, &title, &first_linear_spine_href)?;
     zip_buffer(&mut zip_file, ncx_xml.as_bytes().to_vec(), ncx_path)?;
 
-    // The rest of the epub goes here once I define its methods
-
     // Wrap up file and return
     zip_file.finish().map_err(|e| e.to_string())?;
     drop(zip_file);

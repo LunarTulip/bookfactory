@@ -8,7 +8,7 @@ use std::fs::write;
 //   Args   //
 //////////////
 
-/// Build ebook according to the input config file
+/// Build ebook based on recipe from input config file
 #[derive(FromArgs)]
 #[argh(subcommand, name = "build")]
 struct Build {
