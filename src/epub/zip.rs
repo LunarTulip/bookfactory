@@ -2,7 +2,7 @@ use std::io::{Seek, Write};
 use zip::write::{FileOptions, ZipWriter};
 use zip::CompressionMethod;
 
-pub fn add_epub_mimetype<Z: Write + Seek>(zip_file: &mut ZipWriter<Z>) -> Result<(), String> {
+pub(crate) fn add_epub_mimetype<Z: Write + Seek>(zip_file: &mut ZipWriter<Z>) -> Result<(), String> {
     let mimetype_options = FileOptions::default().compression_method(CompressionMethod::Stored);
     zip_file
         .start_file("mimetype", mimetype_options)

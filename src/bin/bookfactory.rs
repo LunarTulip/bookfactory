@@ -1,5 +1,5 @@
 use bookfactory::epub::{build_epub2, zip_with_epub_mimetype};
-use bookfactory::toml::*;
+use bookfactory::toml::{parse_config, Recipe};
 
 use argh::FromArgs;
 use std::fs::write;

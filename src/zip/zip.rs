@@ -61,7 +61,7 @@ fn add_file_with_optional_deflate<P: AsRef<Path> + Clone + Debug, Z: Write + See
     Ok(())
 }
 
-pub fn zip_path<P: AsRef<Path> + Clone + Debug, Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
+pub(crate) fn zip_path<P: AsRef<Path> + Clone + Debug, Q: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
     zip_file: &mut ZipWriter<Z>,
     outside_path: P,
     inside_path: Option<Q>,
@@ -93,7 +93,7 @@ pub fn zip_path<P: AsRef<Path> + Clone + Debug, Q: AsRef<Path> + Clone + Debug, 
     Ok(())
 }
 
-pub fn zip_buffer<P: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
+pub(crate) fn zip_buffer<P: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
     zip_file: &mut ZipWriter<Z>,
     buffer: Vec<u8>,
     inside_path: P,
