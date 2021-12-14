@@ -26,9 +26,10 @@ fn check_no_id_collisions(ids: &Vec<String>) -> Result<(), String> {
 
 fn get_safe_uid(opf_ids: &Vec<String>) -> String {
     let mut tentative_id = String::from("BookId");
-    let number_to_append = 1;
+    let mut number_to_append = 1;
     while opf_ids.contains(&tentative_id) {
-        tentative_id = format!("{}_{}", "BookId", number_to_append)
+        tentative_id = format!("{}_{}", "BookId", number_to_append);
+        number_to_append += 1;
     }
     tentative_id
 }
