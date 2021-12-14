@@ -1,4 +1,4 @@
-use crate::epub::epub2::config::parse_epub2_recipe;
+use crate::epub::epub2::config::{parse_epub2_recipe, Metadata, PageTarget};
 use crate::epub::epub2::{
     container::build_container_xml, ncx::build_ncx_xml, opf::build_opf_xml_and_get_metadata,
 };
@@ -10,6 +10,28 @@ use std::io::Cursor;
 use std::mem::drop;
 use std::path::{Path, PathBuf};
 use zip::write::ZipWriter;
+
+fn check_no_id_collisions(ids: &Vec<String>) -> Result<(), String> {
+    let mut ids_as_str: Vec<&str> = ids.iter().map(|id| id.as_ref()).collect();
+    ids_as_str.sort();
+    ids_as_str.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+
+    match ids_as_str.len() == ids.len() {
+        true => Ok(()),
+        false => Err(String::from(
+            "Attempted to use multiple copies of the same ID in the same file.",
+        )),
+    }
+}
+
+fn get_safe_uid(opf_ids: &Vec<String>) -> String {
+    let mut tentative_id = String::from("BookId");
+    let number_to_append = 1;
+    while opf_ids.contains(&tentative_id) {
+        tentative_id = format!("{}_{}", "BookId", number_to_append)
+    }
+    tentative_id
+}
 
 fn check_no_duplicate_inside_paths(inside_paths: &Vec<PathBuf>) -> Result<(), String> {
     let mut paths_as_str = inside_paths
@@ -100,7 +122,6 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
         Some(parent) => parent,
     };
     let (ncx_id, ncx_path_from_opf) = match &config.ncx_meta {
-        // In the long run, put more integrity-checking here, ensuring no collision with other manifest IDs and paths. (And do the same for IDs within the manifest with one another.)
         Some(meta) => {
             let id = match &meta.manifest_id {
                 Some(id) => id,
@@ -121,9 +142,7 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
     let mut epub_file_buffer = Vec::<u8>::new();
     let mut zip_file = ZipWriter::new(Cursor::new(&mut epub_file_buffer));
 
-    add_epub_mimetype(&mut zip_file)?;
-
-    // Validate paths and add preexisting files to zip file
+    // Validate paths
     let mut outside_and_inside_paths = Vec::new();
 
     for item in &config.manifest {
@@ -157,26 +176,55 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
         check_inside_path_is_valid(&inside_path)?;
     }
 
+    // Validate IDs
+    let mut opf_ids: Vec<String> = config.manifest.iter().map(|item| item.id.clone()).collect();
+    opf_ids.push(String::from(ncx_id));
+    if let Some(metadata) = &config.metadata {
+        opf_ids.append(
+            &mut metadata
+                .iter()
+                .filter_map(|item| match item {
+                    Metadata::DcMetadata { id, .. } => id.clone(),
+                    Metadata::CustomMetadata { .. } => None,
+                })
+                .collect(),
+        );
+    }
+
+    check_no_id_collisions(&opf_ids)?;
+    let safe_uid = get_safe_uid(&opf_ids);
+
+    if let Some(list) = &config.pagelist {
+        let ncx_ids = list
+            .iter()
+            .map(|target| match target {
+                PageTarget::WithSimpleLabel { id, .. } => id.clone(),
+                PageTarget::WithComplexLabels { id, .. } => id.clone(),
+            })
+            .collect();
+        check_no_id_collisions(&ncx_ids)?;
+    }
+
+    // Generate non-preexisting files
+    let container_xml = build_container_xml(&config, add_opf_to_rootfiles)?;
+    let (opf_xml, uid, title, first_linear_spine_href) =
+        build_opf_xml_and_get_metadata(&config, &ncx_id, &ncx_path_from_opf, &safe_uid)?;
+    let ncx_xml = build_ncx_xml(&config, &uid, &title, &first_linear_spine_href)?;
+
+    // Zip up all files
+    add_epub_mimetype(&mut zip_file)?;
     for (outside_path, inside_path) in outside_and_inside_paths {
         zip_path(&mut zip_file, outside_path, Some(inside_path))?;
     }
-
-    // Generate non-preexisting files and add them to zip file
-    let container_xml = build_container_xml(&config, add_opf_to_rootfiles)?;
     zip_buffer(
         &mut zip_file,
         container_xml.as_bytes().to_vec(),
         "META-INF/container.xml",
     )?;
-
-    let (opf_xml, uid, title, first_linear_spine_href) =
-        build_opf_xml_and_get_metadata(&config, &ncx_id, &ncx_path_from_opf)?;
     zip_buffer(&mut zip_file, opf_xml.as_bytes().to_vec(), opf_path)?;
-
-    let ncx_xml = build_ncx_xml(&config, &uid, &title, &first_linear_spine_href)?;
     zip_buffer(&mut zip_file, ncx_xml.as_bytes().to_vec(), ncx_path)?;
 
-    // Wrap up file and return
+    // Wrap up and return
     zip_file.finish().map_err(|e| e.to_string())?;
     drop(zip_file);
 

@@ -286,6 +286,7 @@ struct Package {
 
 fn get_uid_and_title_and_metadata(
     config: &Epub2Config,
+    safe_uid: &str,
 ) -> Result<(String, String, Metadata), String> {
     match &config.metadata {
         Some(config_metadata) => {
@@ -392,7 +393,7 @@ fn get_uid_and_title_and_metadata(
                 }
             }) {
                 metadata.push(MetadataItem::DcIdentifier(Identifier {
-                    id: Some(String::from("BookId")), // Figure out a better default here maybe
+                    id: Some(String::from(safe_uid)),
                     opf_scheme: Some(String::from("UUID")),
                     body: format!("{}", Uuid::new_v4()),
                 }))
@@ -426,8 +427,8 @@ fn get_uid_and_title_and_metadata(
                 _ => {
                     match metadata.iter_mut().find(|item| if let MetadataItem::DcIdentifier(_) = item { true } else { false }) {
                         Some(MetadataItem::DcIdentifier(identifier)) => {
-                            identifier.id = Some(String::from("BookId")); // Figure out a better default here maybe
-                            String::from("BookId")
+                            identifier.id = Some(String::from(safe_uid));
+                            String::from(safe_uid)
                         },
                         _ => return Err(String::from("No identifier found after identifier's presence should have been ensured.")),
                     }
@@ -467,7 +468,7 @@ fn get_uid_and_title_and_metadata(
                         body: String::from("Untitled"),
                     }),
                     MetadataItem::DcIdentifier(Identifier {
-                        id: Some(String::from("BookId")), // Figure out a better default here maybe
+                        id: Some(String::from(safe_uid)),
                         opf_scheme: Some(String::from("UUID")),
                         body: format!("{}", Uuid::new_v4()),
                     }),
@@ -480,7 +481,7 @@ fn get_uid_and_title_and_metadata(
                 ],
             };
 
-            Ok((String::from("BookId"), String::from("Untitled"), metadata))
+            Ok((String::from(safe_uid), String::from("Untitled"), metadata))
         }
     }
 }
@@ -607,8 +608,9 @@ pub(crate) fn build_opf_xml_and_get_metadata(
     config: &Epub2Config,
     ncx_id: &str,
     ncx_path_from_opf: &str,
+    safe_uid: &str,
 ) -> Result<(String, String, String, String), String> {
-    let (uid, title, metadata) = get_uid_and_title_and_metadata(&config)?;
+    let (uid, title, metadata) = get_uid_and_title_and_metadata(&config, safe_uid)?;
     let opf = Package {
         version: String::from("2.0"),
         xmlns: String::from("http://www.idpf.org/2007/opf"),
