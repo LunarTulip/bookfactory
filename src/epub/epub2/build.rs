@@ -11,26 +11,26 @@ use std::mem::drop;
 use std::path::{Path, PathBuf};
 use zip::write::ZipWriter;
 
-fn check_no_duplicate_inside_paths(paths_vec: &Vec<(&str, PathBuf)>) -> Result<(), String> {
-    let mut inside_paths = paths_vec
+fn check_no_duplicate_inside_paths(inside_paths: &Vec<PathBuf>) -> Result<(), String> {
+    let mut paths_as_str = inside_paths
         .iter()
-        .map(|(_outside, inside)| match inside.to_str() {
-            None => Err(format!("Invalid non-UTF-8 path: {:?}", inside)),
+        .map(|path| match path.to_str() {
+            None => Err(format!("Invalid non-UTF-8 path: {:?}", path)),
             Some(in_str) => Ok(in_str),
         })
         .collect::<Result<Vec<&str>, String>>()?;
-    inside_paths.sort();
-    inside_paths.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    paths_as_str.sort();
+    paths_as_str.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
 
-    match inside_paths.len() == paths_vec.len() {
+    match paths_as_str.len() == inside_paths.len() {
         true => Ok(()),
         false => Err(String::from("Attempted to store multiple files at the same inside path, or at inside paths differing only by case.")),
     }
 }
 
-fn check_inside_path_is_valid(path: &PathBuf) -> Result<(), String> {
-    match path.file_name() {
-        None => return Err(format!("Invalid path ending in '..': {:?}", path)),
+fn check_inside_path_is_valid(inside_path: &PathBuf) -> Result<(), String> {
+    match inside_path.file_name() {
+        None => return Err(format!("Invalid path ending in '..': {:?}", inside_path)),
         Some(filename) => match filename.to_str() {
             None => return Err(format!("Invalid non-UTF-8 filename: {:?}", filename)),
             Some(filename_str) => {
@@ -44,8 +44,8 @@ fn check_inside_path_is_valid(path: &PathBuf) -> Result<(), String> {
         },
     };
 
-    match path.to_str() {
-        None => return Err(format!("Invalid non-UTF-8 path: {:?}", path)),
+    match inside_path.to_str() {
+        None => return Err(format!("Invalid non-UTF-8 path: {:?}", inside_path)),
         Some(path_str) => {
             if path_str.len() > 65535 {
                 return Err(format!("Invalid path of length >65535 bytes: {}", path_str));
@@ -53,7 +53,7 @@ fn check_inside_path_is_valid(path: &PathBuf) -> Result<(), String> {
         }
     };
 
-    for component in path.iter() {
+    for component in inside_path.iter() {
         match component.to_str() {
             None => {
                 return Err(format!(
@@ -67,13 +67,13 @@ fn check_inside_path_is_valid(path: &PathBuf) -> Result<(), String> {
                     Some(index) => {
                         return Err(format!(
                             "Path {:?} contains invalid character '{}'.",
-                            path,
+                            inside_path,
                             component_str.get(index..index + 1).unwrap()
                         ))
                     }
                 };
                 if component_str.ends_with('.') {
-                    return Err(format!("Path {:?} ends with '.'.", path));
+                    return Err(format!("Path {:?} ends with '.'.", inside_path));
                 }
             }
         };
@@ -123,7 +123,7 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
 
     add_epub_mimetype(&mut zip_file)?;
 
-    // Add preexisting files to zip file
+    // Validate paths and add preexisting files to zip file
     let mut outside_and_inside_paths = Vec::new();
 
     for item in &config.manifest {
@@ -142,9 +142,22 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
         }
     }
 
-    check_no_duplicate_inside_paths(&outside_and_inside_paths)?;
-    for (outside_path, inside_path) in outside_and_inside_paths {
+    let mut inside_paths: Vec<PathBuf> = outside_and_inside_paths
+        .iter()
+        .map(|(_outside, inside): &(&str, PathBuf)| inside.clone())
+        .collect();
+    inside_paths.append(&mut vec![
+        PathBuf::from("META-INF/container.xml"),
+        PathBuf::from(&opf_path),
+        PathBuf::from(&ncx_path),
+    ]);
+
+    check_no_duplicate_inside_paths(&inside_paths)?;
+    for inside_path in inside_paths {
         check_inside_path_is_valid(&inside_path)?;
+    }
+
+    for (outside_path, inside_path) in outside_and_inside_paths {
         zip_path(&mut zip_file, outside_path, Some(inside_path))?;
     }
 
