@@ -1,3 +1,5 @@
+use crate::helpers::fixed_clean;
+
 use std::fmt::Debug;
 use std::fs::{metadata, read, read_dir};
 use std::io::{Cursor, Seek, Write};
@@ -71,13 +73,13 @@ pub(crate) fn zip_path<
     inside_path: Option<Q>,
 ) -> Result<(), String> {
     let path_metadata = metadata(&outside_path).map_err(|e| e.to_string())?;
-    let true_inside_path = match inside_path {
+    let true_inside_path = fixed_clean(match inside_path {
         Some(path) => path.as_ref().to_path_buf(),
         None => PathBuf::from(outside_path.as_ref().file_name().ok_or(format!(
             "Ill-formed path ending in '..': {:?}",
             outside_path
         ))?),
-    };
+    });
 
     if path_metadata.is_file() {
         let file_contents = read(outside_path).map_err(|e| e.to_string())?;
@@ -102,5 +104,5 @@ pub(crate) fn zip_buffer<P: AsRef<Path> + Clone + Debug, Z: Write + Seek>(
     buffer: Vec<u8>,
     inside_path: P,
 ) -> Result<(), String> {
-    add_file_with_optional_deflate(zip_file, buffer, inside_path)
+    add_file_with_optional_deflate(zip_file, buffer, fixed_clean(inside_path))
 }

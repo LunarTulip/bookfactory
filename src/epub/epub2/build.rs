@@ -14,7 +14,7 @@ use zip::write::ZipWriter;
 fn check_no_id_collisions(ids: &Vec<String>) -> Result<(), String> {
     let mut ids_as_str: Vec<&str> = ids.iter().map(|id| id.as_ref()).collect();
     ids_as_str.sort();
-    ids_as_str.dedup_by(|a, b| a.eq_ignore_ascii_case(b));
+    ids_as_str.dedup();
 
     match ids_as_str.len() == ids.len() {
         true => Ok(()),
@@ -95,7 +95,8 @@ fn check_inside_path_is_valid(inside_path: &PathBuf) -> Result<(), String> {
                         ))
                     }
                 };
-                if component_str.ends_with('.') {
+                if component_str.ends_with('.') && component_str != "." && component_str != ".." {
+                    // This is a bit crude/awkward; plausibly there's a more elegant way to do this check
                     return Err(format!("Path {:?} ends with '.'.", inside_path));
                 }
             }
@@ -210,7 +211,14 @@ pub fn build_epub2(recipe: &Recipe) -> Result<Vec<u8>, String> {
     let container_xml = build_container_xml(&config, add_opf_to_rootfiles)?;
     let (opf_xml, uid, title, first_linear_spine_href) =
         build_opf_xml_and_get_metadata(&config, &ncx_id, &ncx_path_from_opf, &safe_uid)?;
-    let ncx_xml = build_ncx_xml(&config, &uid, &title, &first_linear_spine_href)?;
+    let ncx_xml = build_ncx_xml(
+        &config,
+        &PathBuf::from(opf_parent_dir),
+        &PathBuf::from(ncx_path_from_opf),
+        &uid,
+        &title,
+        &first_linear_spine_href,
+    )?;
 
     // Zip up all files
     add_epub_mimetype(&mut zip_file)?;

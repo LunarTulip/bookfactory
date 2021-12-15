@@ -1,7 +1,10 @@
 use crate::epub::epub2::config;
 use crate::epub::epub2::config::Epub2Config;
-use crate::epub::epub2::helpers::get_manifest_path_from_idref;
+use crate::epub::epub2::helpers::get_path_from_idref;
+use crate::helpers::fixed_clean;
 
+use common_path::common_path;
+use std::path::PathBuf;
 use yaserde_derive::YaSerialize;
 
 ///////////////////
@@ -131,12 +134,112 @@ struct Ncx {
     navlist: Vec<NavList>, // Should be an option, but a library bug is interfering
 }
 
+/////////////////
+//   Helpers   //
+/////////////////
+
+fn get_ncx_path_to_file(
+    opf_parent_path_from_zip_root: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
+    file_path_from_opf: &PathBuf,
+) -> Result<String, String> {
+    let ncx_path_from_zip_root = {
+        let mut path = opf_parent_path_from_zip_root.clone();
+        path.push(&ncx_path_from_opf);
+        fixed_clean(path)
+    };
+    let file_path_from_zip_root = {
+        let mut path = opf_parent_path_from_zip_root.clone();
+        path.push(&file_path_from_opf);
+        fixed_clean(path)
+    };
+    let filename = {
+        let filename_os_str = file_path_from_opf.file_name().ok_or(format!(
+            "Invalid path ending in '..': {}",
+            file_path_from_opf.display()
+        ))?;
+        filename_os_str
+            .to_str()
+            .ok_or(format!("Invalid non-UTF-8 filename: {:?}", filename_os_str))?
+    };
+
+    if ncx_path_from_zip_root.parent() == file_path_from_zip_root.parent() {
+        // File is in same folder as NCX
+        Ok(format!("{}", filename))
+    } else {
+        match file_path_from_zip_root.parent() {
+            None => {
+                Err(format!("File {} has no parent. (This shouldn't be able to happen, since 'the empty parent' is counted separately from 'no parent'.)", file_path_from_zip_root.display()))
+            }
+            Some(file_parent) => {
+                if ncx_path_from_zip_root.starts_with(file_parent) {
+                    // File is in a non-root ancestor of the NCX's parent folder
+                    let ncx_depth_from_file_parent = ncx_path_from_zip_root.strip_prefix(file_parent).map_err(|e| e.to_string())?.ancestors().count() - 2; // Subtract 1 for the method counting the NCX as its own ancestor and 1 for the empty ancestor
+
+                    let mut prefix = String::new();
+                    for _ in 0..ncx_depth_from_file_parent {
+                        prefix = format!("../{}", prefix);
+                    }
+
+                    Ok(format!("{}{}", prefix, filename))
+                } else {
+                    match common_path(&ncx_path_from_zip_root, &file_path_from_zip_root) {
+                        Some(common_ancestor) => {
+                            // File is in a different branch of the file tree from the NCX, diverging below the zip root
+                            let ncx_depth_from_common_ancestor = ncx_path_from_zip_root.strip_prefix(&common_ancestor).map_err(|e| e.to_string())?.ancestors().count() - 2;
+                            let file_path_from_common_ancestor = {
+                                let path_os_str = file_path_from_zip_root.strip_prefix(&common_ancestor).map_err(|e| e.to_string())?.as_os_str();
+                                path_os_str.to_str().ok_or(format!("Invalid non-UTF-8 path: {:?}", path_os_str))?
+                            };
+
+                            let mut prefix = String::new();
+                            for _ in 0..ncx_depth_from_common_ancestor {
+                                prefix = format!("../{}", prefix);
+                            }
+
+                            Ok(format!("{}{}", prefix, file_path_from_common_ancestor))
+                        }
+                        None => {
+                            // File is in the zip root, or else in a different branch of the file tree from the NCX which diverges at the zip root
+                            let ncx_depth = ncx_path_from_zip_root.ancestors().count() - 2;
+
+                            let mut prefix = String::new();
+                            for _ in 0..ncx_depth {
+                                prefix = format!("../{}", prefix);
+                            }
+
+                            Ok(format!("{}{}", prefix, file_path_from_zip_root.as_os_str().to_str().ok_or(format!("Invalid non-UTF-8 path: {:?}", file_path_from_zip_root))?))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn get_ncx_path_to_file_from_idref(
+    config: &Epub2Config,
+    idref: &str,
+    fragment: Option<&String>,
+    opf_parent_abs_path: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
+) -> Result<String, String> {
+    let file_path_from_opf = get_path_from_idref(config, idref, fragment)?;
+    get_ncx_path_to_file(
+        opf_parent_abs_path,
+        ncx_path_from_opf,
+        &PathBuf::from(file_path_from_opf),
+    )
+}
+
 ///////////////
 //   Build   //
 ///////////////
 
 fn convert_navpoint(
     config: &Epub2Config,
+    opf_parent_path: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
     other_format_navpoint: &config::NavPoint,
 ) -> Result<NavPoint, String> {
     Ok(match other_format_navpoint {
@@ -150,13 +253,24 @@ fn convert_navpoint(
                 xml_lang: None,
                 text: label.clone(),
             }],
-            content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
+            content: get_ncx_path_to_file_from_idref(
+                config,
+                &idref,
+                fragment.as_ref(),
+                opf_parent_path,
+                ncx_path_from_opf,
+            )?,
             navpoint: match children {
                 None => Vec::new(),
                 Some(children) => {
                     let mut children_vec = Vec::new();
                     for child in children {
-                        children_vec.push(convert_navpoint(config, child)?);
+                        children_vec.push(convert_navpoint(
+                            config,
+                            opf_parent_path,
+                            ncx_path_from_opf,
+                            child,
+                        )?);
                     }
                     children_vec
                 }
@@ -175,13 +289,24 @@ fn convert_navpoint(
                     text: label.label.clone(),
                 })
                 .collect(),
-            content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
+            content: get_ncx_path_to_file_from_idref(
+                config,
+                &idref,
+                fragment.as_ref(),
+                opf_parent_path,
+                ncx_path_from_opf,
+            )?,
             navpoint: match children {
                 None => Vec::new(),
                 Some(children) => {
                     let mut children_vec = Vec::new();
                     for child in children {
-                        children_vec.push(convert_navpoint(config, child)?);
+                        children_vec.push(convert_navpoint(
+                            config,
+                            opf_parent_path,
+                            ncx_path_from_opf,
+                            child,
+                        )?);
                     }
                     children_vec
                 }
@@ -192,6 +317,8 @@ fn convert_navpoint(
 
 fn get_navmap(
     config: &Epub2Config,
+    opf_parent_path: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
     doctitle: &str,
     first_linear_spine_href: &str,
 ) -> Result<NavMap, String> {
@@ -210,7 +337,12 @@ fn get_navmap(
             navpoint: {
                 let mut navpoints_vec = Vec::new();
                 for navpoint in navmap {
-                    navpoints_vec.push(convert_navpoint(config, navpoint)?);
+                    navpoints_vec.push(convert_navpoint(
+                        config,
+                        opf_parent_path,
+                        ncx_path_from_opf,
+                        navpoint,
+                    )?);
                 }
                 navpoints_vec
             },
@@ -218,7 +350,11 @@ fn get_navmap(
     })
 }
 
-fn get_pagelist(config: &Epub2Config) -> Result<Option<PageList>, String> {
+fn get_pagelist(
+    config: &Epub2Config,
+    opf_parent_path: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
+) -> Result<Option<PageList>, String> {
     match &config.pagelist {
         None => Ok(None),
         Some(pagelist) => Ok(Some(PageList {
@@ -241,10 +377,12 @@ fn get_pagelist(config: &Epub2Config) -> Result<Option<PageList>, String> {
                                 xml_lang: None,
                                 text: label.clone(),
                             }],
-                            content: get_manifest_path_from_idref(
+                            content: get_ncx_path_to_file_from_idref(
                                 config,
                                 &idref,
                                 fragment.as_ref(),
+                                opf_parent_path,
+                                ncx_path_from_opf,
                             )?,
                         },
                         config::PageTarget::WithComplexLabels {
@@ -265,10 +403,12 @@ fn get_pagelist(config: &Epub2Config) -> Result<Option<PageList>, String> {
                                     text: label.label.clone(),
                                 })
                                 .collect(),
-                            content: get_manifest_path_from_idref(
+                            content: get_ncx_path_to_file_from_idref(
                                 config,
                                 &idref,
                                 fragment.as_ref(),
+                                opf_parent_path,
+                                ncx_path_from_opf,
                             )?,
                         },
                     });
@@ -281,6 +421,8 @@ fn get_pagelist(config: &Epub2Config) -> Result<Option<PageList>, String> {
 
 fn convert_navlist(
     config: &Epub2Config,
+    opf_parent_path: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
     other_format_list: &Vec<config::NavTarget>,
 ) -> Result<Vec<NavTarget>, String> {
     let mut navtarget_vec = Vec::new();
@@ -295,7 +437,13 @@ fn convert_navlist(
                     xml_lang: None,
                     text: label.clone(),
                 }],
-                content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
+                content: get_ncx_path_to_file_from_idref(
+                    config,
+                    &idref,
+                    fragment.as_ref(),
+                    opf_parent_path,
+                    ncx_path_from_opf,
+                )?,
             },
             config::NavTarget::WithComplexLabels {
                 labels,
@@ -309,14 +457,24 @@ fn convert_navlist(
                         text: label.label.clone(),
                     })
                     .collect(),
-                content: get_manifest_path_from_idref(config, &idref, fragment.as_ref())?,
+                content: get_ncx_path_to_file_from_idref(
+                    config,
+                    &idref,
+                    fragment.as_ref(),
+                    opf_parent_path,
+                    ncx_path_from_opf,
+                )?,
             },
         });
     }
     Ok(navtarget_vec)
 }
 
-fn get_navlists(config: &Epub2Config) -> Result<Vec<NavList>, String> {
+fn get_navlists(
+    config: &Epub2Config,
+    opf_parent_path: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
+) -> Result<Vec<NavList>, String> {
     match &config.navlists {
         None => Ok(Vec::new()),
         Some(navlists) => {
@@ -328,7 +486,12 @@ fn get_navlists(config: &Epub2Config) -> Result<Vec<NavList>, String> {
                             xml_lang: None,
                             text: label.clone(),
                         }],
-                        navtarget: convert_navlist(config, list)?,
+                        navtarget: convert_navlist(
+                            config,
+                            opf_parent_path,
+                            ncx_path_from_opf,
+                            list,
+                        )?,
                     },
                     config::NavList::WithComplexLabels { labels, list } => NavList {
                         navlabel: labels
@@ -338,7 +501,12 @@ fn get_navlists(config: &Epub2Config) -> Result<Vec<NavList>, String> {
                                 text: label.label.clone(),
                             })
                             .collect(),
-                        navtarget: convert_navlist(config, list)?,
+                        navtarget: convert_navlist(
+                            config,
+                            opf_parent_path,
+                            ncx_path_from_opf,
+                            list,
+                        )?,
                     },
                 });
             }
@@ -349,10 +517,14 @@ fn get_navlists(config: &Epub2Config) -> Result<Vec<NavList>, String> {
 
 pub(crate) fn build_ncx_xml(
     config: &Epub2Config,
+    opf_parent_path: &PathBuf,
+    ncx_path_from_opf: &PathBuf,
     uid: &str,
     doctitle: &str,
     first_linear_spine_href: &str,
 ) -> Result<String, String> {
+    let clean_opf_parent_path = &fixed_clean(opf_parent_path);
+
     let ncx = Ncx {
         version: String::from("2005-1"),
         xmlns: String::from("http://www.daisy.org/z3986/2005/ncx/"),
@@ -365,9 +537,15 @@ pub(crate) fn build_ncx_xml(
         doctitle: DocTitle {
             text: String::from(doctitle),
         },
-        navmap: get_navmap(config, doctitle, first_linear_spine_href)?,
-        pagelist: get_pagelist(config)?,
-        navlist: get_navlists(config)?,
+        navmap: get_navmap(
+            config,
+            clean_opf_parent_path,
+            ncx_path_from_opf,
+            doctitle,
+            first_linear_spine_href,
+        )?,
+        pagelist: get_pagelist(config, clean_opf_parent_path, ncx_path_from_opf)?,
+        navlist: get_navlists(config, clean_opf_parent_path, ncx_path_from_opf)?,
     };
 
     let yaserde_cfg = yaserde::ser::Config {

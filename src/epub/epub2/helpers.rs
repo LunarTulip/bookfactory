@@ -1,6 +1,6 @@
 use crate::epub::epub2::config::Epub2Config;
 
-pub(crate) fn get_manifest_path_from_idref(
+pub(crate) fn get_path_from_idref(
     config: &Epub2Config,
     idref: &str,
     fragment: Option<&String>,

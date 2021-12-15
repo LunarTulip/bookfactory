@@ -1,6 +1,6 @@
 use crate::epub::epub2::config;
 use crate::epub::epub2::config::Epub2Config;
-use crate::epub::epub2::helpers::get_manifest_path_from_idref;
+use crate::epub::epub2::helpers::get_path_from_idref;
 
 use sys_locale::get_locale;
 use uuid::Uuid;
@@ -590,7 +590,7 @@ fn get_guide(config: &Epub2Config) -> Result<Option<Guide>, String> {
                 references.push(Reference {
                     reference_type: reference.reference_type.clone(),
                     title: reference.title.clone(),
-                    href: get_manifest_path_from_idref(
+                    href: get_path_from_idref(
                         config,
                         &reference.idref,
                         reference.fragment.as_ref(),
@@ -638,7 +638,7 @@ pub(crate) fn build_opf_xml_and_get_metadata(
                 "No linear items found in spine after their presence should be guaranteed.",
             ))
         }
-        Some(itemref) => get_manifest_path_from_idref(config, &itemref.idref, None)?,
+        Some(itemref) => get_path_from_idref(config, &itemref.idref, None)?,
     };
 
     Ok((opf_xml, uid, title, first_linear_spine_href))
